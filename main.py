@@ -47,28 +47,40 @@ alldf = pd.concat([sofrdf,indexdf],axis='columns',join='outer',ignore_index=Fals
 # add days between dates to series
 dates=alldf.index
 datelen=len(dates)
-days=dates[1:datelen]-dates[0:datelen-1]
+days=(dates[1:datelen]-dates[0:datelen-1]).days
 days=days.append(pd.Index([math.nan])) # top off last day with null
 alldf['days']=days # add days to df
-
+alldf['dailyAccrual']=(alldf['percentRate']*alldf['days'])/36000+1.0
 
 print(alldf)
 
 dateStart = dt(2020,3,11)
-dateEnd = dt(2020,6,11)
-accrual = dateEnd-dateStart
+dateEnd = dt(2021,3,11)
+accrual_days = (dateEnd-dateStart).days
 indexStart = alldf.loc[dateStart]['index']
 indexEnd = alldf.loc[dateEnd]['index']
 
 #mask=(alldf['date']>=dateStart) & (alldf['date']<dateEnd)
 #print(rangedf)
 accrualdf=alldf.loc[dateStart:dateEnd]
+accrualdf.drop(accrualdf.tail(1).index,inplace=True) # drop last row
 
+print('       accrual_days=',accrual_days) 
 
+print('          accrualdf=',accrualdf)
+accrual_compounded=accrualdf['dailyAccrual'].product()
+rate_compounded = (accrual_compounded-1)*360/accrual_days
+print('accrual(compounded)=',accrual_compounded)
+print('   rate(compounded)=',rate_compounded)
 
-print(dateStart)
-print(indexStart)
-print(dateEnd)
-print(indexEnd)
-print(accrual)
+print('          dateStart=',dateStart)
+print('         indexStart=',indexStart)
+print('            dateEnd=',dateEnd)
+print('           indexEnd=',indexEnd)
+accrual_index=indexEnd/indexStart
+print('     accrual(index)=',accrual_index)
+rate_index = (accrual_index-1)*360/accrual_days
+print('        rate(index)=',rate_index)
+
+print('    rate difference=',rate_compounded-rate_index)
 print("END")
