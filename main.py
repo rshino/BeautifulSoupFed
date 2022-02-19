@@ -5,6 +5,7 @@ import pandas as pd
 import urllib.request
 from datetime import datetime as dt
 from bs4 import BeautifulSoup
+import math
 
 def date2ccyymmdd(dateObj):
   return dt.strftime(dateObj,'%Y-%m-%d')
@@ -28,20 +29,30 @@ def fedQuery(rateCode, rateName,startDate,endDate):
     rows = [dt.strptime(dates[i].get_text(),'%Y-%m-%d'),rates[i].get_text()]
     data.append(rows)
   df = pd.DataFrame(data,columns = ['date',rateName],dtype=float)
-  df.set_index('date',inplace=True)
+  df.set_index('date',inplace=True,drop=True)
   return df
+  # end fedQuery()
 
 
+# get data from Fed 
 endDt=dt(2022, 2, 18)
 sofrONStartDt=dt(2018, 4, 2)
 sofrIndexStartDt=dt(2020, 3, 2)
 
+# two queries because data ranges are different
+sofrdf=fedQuery('520','percentRate',sofrONStartDt,endDt) # SOFR ON
+indexdf=fedQuery('525','index',sofrIndexStartDt,endDt) # SOFR Index
+# combine into single series
+alldf = pd.concat([sofrdf,indexdf],axis='columns',join='outer',ignore_index=False)
+# add days between dates to series
+dates=alldf.index
+datelen=len(dates)
+days=dates[1:datelen]-dates[0:datelen-1]
+days=days.append(pd.Index([math.nan])) # top off last day with null
+alldf['days']=days # add days to df
 
-sofrdf=fedQuery('520','percentRate',sofrONStartDt,endDt)
-indexdf=fedQuery('525','index',sofrIndexStartDt,endDt)
 
-alldf = pd.concat([sofrdf,indexdf],axis=1)
-#print(alldf)
+print(alldf)
 
 dateStart = dt(2020,3,11)
 dateEnd = dt(2020,6,11)
@@ -51,9 +62,13 @@ indexEnd = alldf.loc[dateEnd]['index']
 
 #mask=(alldf['date']>=dateStart) & (alldf['date']<dateEnd)
 #print(rangedf)
-print(alldf.loc[dateStart:dateEnd])
+accrualdf=alldf.loc[dateStart:dateEnd]
+
+
+
 print(dateStart)
 print(indexStart)
 print(dateEnd)
 print(indexEnd)
 print(accrual)
+print("END")
