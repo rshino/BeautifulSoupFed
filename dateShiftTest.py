@@ -4,7 +4,6 @@
 import pandas as pd
 import urllib.request
 from datetime import datetime as dt, timedelta,date
-from dateutil.relativedelta import relativedelta
 from bs4 import BeautifulSoup
 import math
 
@@ -81,36 +80,57 @@ alldf['dailyAccrual']=(alldf['percentRate']*alldf['days'])/(DAY_COUNT*100)+1.0
 
 ######################## setup complete #######################
 
-d0 = dt(2020,3,11) 
-d1 = d0+relativedelta(months=6)
-shift=0
-following=1
-d0=dateShift(alldf,d0,following,shift)
-d1=dateShift(alldf,d1,following,shift)
-d1prevBD=dateShift(alldf,d1,following,-1)
+#print(alldf.loc[dt(2020,3,11)].iloc)
+test_date = dt(2020,4,11)
+unique_index=pd.Index(alldf.index)
+loc=unique_index.get_loc(test_date,method='ffill')
+print(loc,unique_index[loc])
+loc=unique_index.get_loc(test_date,method='bfill')
+print(loc,unique_index[loc])
 
-accrual_days = (d1-d0).days
-index0 = alldf.loc[d0]['index']
-index1 = alldf.loc[d1]['index']
 
-accrualdf=alldf.loc[d0:d1prevBD] # accrual stops 1 day before coupon date
-#accrualdf.drop(accrualdf.tail(1).index,inplace=True) # drop last row
+test_date = dt(2020,3,11)
+adjusted_date = dateShift(alldf,test_date,0,0)
+print('test_date=',test_date,'adjusted_date=',adjusted_date)
+test_date = dt(2020,4,11)
+adjusted_date = dateShift(alldf,test_date,0,0)
+print('test_date=',test_date,'adjusted_date=',adjusted_date)
+test_date = dt(2020,4,11)
+adjusted_date = dateShift(alldf,test_date,1,0)
+print('test_date=',test_date,'adjusted_date=',adjusted_date)
+test_date = dt(2020,4,11)
+adjusted_date = dateShift(alldf,test_date,-1,0)
+print('test_date=',test_date,'adjusted_date=',adjusted_date)
+test_date = dt(2020,4,11)
+adjusted_date = dateShift(alldf,test_date,-1,-10000)
+print('test_date=',test_date,'adjusted_date=',adjusted_date)
 
-print('          accrualdf=\n',accrualdf)
+'''
+dateStart = dt(2020,3,11)
+dateEnd = dt(2020,4,13)
+accrual_days = (dateEnd-dateStart).days
+indexStart = alldf.loc[dateStart]['index']
+indexEnd = alldf.loc[dateEnd]['index']
+
+accrualdf=alldf.loc[dateStart:dateEnd]
+accrualdf.drop(accrualdf.tail(1).index,inplace=True) # drop last row
+
+print('          accrualdf=',accrualdf)
 print('       accrual_days=',accrual_days) 
 accrual_compounded=accrualdf['dailyAccrual'].product()
 rate_compounded = (accrual_compounded-1)*360/accrual_days
 print('accrual(compounded)=',accrual_compounded)
 print('   rate(compounded)=',rate_compounded)
 
-print('          dateStart=',d0)
-print('         indexStart=',index0)
-print('            dateEnd=',d1)
-print('           indexEnd=',index1)
-accrual_index=index1/index0
+print('          dateStart=',dateStart)
+print('         indexStart=',indexStart)
+print('            dateEnd=',dateEnd)
+print('           indexEnd=',indexEnd)
+accrual_index=indexEnd/indexStart
 print('     accrual(index)=',accrual_index)
 rate_index = (accrual_index-1)*360/accrual_days
 print('        rate(index)=',rate_index)
 
 print('    rate difference=',rate_compounded-rate_index)
 print("END")
+'''
