@@ -12,17 +12,23 @@ TODAY=date.today()
 START_DATE_SOFR_ON=dt(2018, 4, 2)
 START_DATE_SOFR_INDEX=dt(2020, 3, 2)
 DAY_COUNT=360
+# Fed data gleaned from XML links
+# https://www.newyorkfed.org/markets/reference-rates/sofr
 FEDMKT_URL='https://markets.newyorkfed.org/read'
+SOFR_ON_REQCODE='520' 
+SOFR_ON='percentRate'
+SOFR_INDEX_REQCODE='525'
+SOFR_INDEX='index'
 
 def date2ccyymmdd(dateObj):
   return dt.strftime(dateObj,'%Y-%m-%d')
 
 def fedQuery(rateCode, rateName,startDate,endDate):
-  url_str = FEDMKT_URL+'?startDt='+\
-  date2ccyymmdd(startDate)+\
-  '&endDt='+\
-  date2ccyymmdd(endDate)+\
-  '&productCode=50&eventCodes='+rateCode+'&sort=postDt:1&format=xml'
+  url_str = FEDMKT_URL+'?'+\
+  '&startDt='+date2ccyymmdd(startDate)+\
+  '&endDt='+date2ccyymmdd(endDate)+\
+  '&productCode=50'+\
+  '&eventCodes='+rateCode+'&sort=postDt:1&format=xml'
   request_url = urllib.request.urlopen(url_str)
   xmldata = request_url.read()
   soup = BeautifulSoup(xmldata,'xml')
@@ -66,8 +72,8 @@ def dateShift(cal, base_date, match, shift):
 
 # get data from Fed 
 # two queries because data ranges are different
-sofrdf=fedQuery('520','percentRate',START_DATE_SOFR_ON,TODAY) # SOFR ON
-indexdf=fedQuery('525','index',START_DATE_SOFR_INDEX,TODAY) # SOFR Index
+sofrdf=fedQuery(SOFR_ON_REQCODE,SOFR_ON,START_DATE_SOFR_ON,TODAY) # SOFR ON
+indexdf=fedQuery(SOFR_INDEX_REQCODE,SOFR_INDEX,START_DATE_SOFR_INDEX,TODAY) # SOFR Index
 # combine into single series
 alldf = pd.concat([sofrdf,indexdf],axis='columns',join='outer',ignore_index=False)
 # add busday intervals between dates to series
@@ -77,7 +83,7 @@ days=(dates[1:datelen]-dates[0:datelen-1]).days
 days=days.append(pd.Index([math.nan])) # top off last day with null
 alldf['days']=days # add days to df
 # calculate dailyAccrual 
-alldf['dailyAccrual']=(alldf['percentRate']*alldf['days'])/(DAY_COUNT*100)+1.0
+alldf['dailyAccrual']=(alldf[SOFR_ON]*alldf['days'])/(DAY_COUNT*100)+1.0
 
 ######################## setup complete #######################
 
@@ -90,8 +96,8 @@ d1=dateShift(alldf,d1,following,shift)
 d1prevBD=dateShift(alldf,d1,following,-1)
 
 accrual_days = (d1-d0).days
-index0 = alldf.loc[d0]['index']
-index1 = alldf.loc[d1]['index']
+index0 = alldf.loc[d0][SOFR_INDEX]
+index1 = alldf.loc[d1][SOFR_INDEX]
 
 accrualdf=alldf.loc[d0:d1prevBD] # accrual stops 1 day before coupon date
 #accrualdf.drop(accrualdf.tail(1).index,inplace=True) # drop last row
