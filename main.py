@@ -3,9 +3,33 @@
 #
 import pandas as pd
 import urllib.request
-from datetime import datetime as dt
+from datetime import datetime as dt, timedelta
 from bs4 import BeautifulSoup
 import math
+
+# dateInSample
+#   given a base date and 
+#   datedf     : dataframe where index is datetime
+#   input_date : base date
+#   shift      : +1 following date (future)
+#              : 0  exact date (returns None if not found)
+#              : -1 prior date (past)
+def dateInSample(datedf, input_date, shift):
+  x_date=input_date
+  mindate=min(datedf.index)
+  maxdate=max(datedf.index)
+  retdate=None
+  while(x_date>=mindate and x_date<=maxdate):
+    try:
+      datedf.loc[x_date]
+      retdate= x_date
+      break
+    except Exception as e:
+      if (shift==0):
+        break
+      x_date+=timedelta(shift)
+  return retdate
+  # dateInSample
 
 def date2ccyymmdd(dateObj):
   return dt.strftime(dateObj,'%Y-%m-%d')
@@ -52,22 +76,38 @@ days=days.append(pd.Index([math.nan])) # top off last day with null
 alldf['days']=days # add days to df
 alldf['dailyAccrual']=(alldf['percentRate']*alldf['days'])/36000+1.0
 
-print(alldf)
+######################## setup complete #######################
 
+#print(alldf.loc[dt(2020,3,11)].iloc)
+test_date = dt(2020,4,11)
+unique_index=pd.Index(alldf.index)
+loc=unique_index.get_loc(test_date,method='ffill')
+print(loc,unique_index[loc])
+loc=unique_index.get_loc(test_date,method='bfill')
+print(loc,unique_index[loc])
+
+
+
+
+adjusted_date = dateInSample(alldf,test_date,0)
+print('test_date=',test_date,'adjusted_date=',adjusted_date)
+test_date = dt(2020,4,11)
+adjusted_date = dateInSample(alldf,test_date,1)
+print('test_date=',test_date,'adjusted_date=',adjusted_date)
+adjusted_date = dateInSample(alldf,test_date,-1)
+print('test_date=',test_date,'adjusted_date=',adjusted_date)
+'''
 dateStart = dt(2020,3,11)
-dateEnd = dt(2021,3,11)
+dateEnd = dt(2020,4,13)
 accrual_days = (dateEnd-dateStart).days
 indexStart = alldf.loc[dateStart]['index']
 indexEnd = alldf.loc[dateEnd]['index']
 
-#mask=(alldf['date']>=dateStart) & (alldf['date']<dateEnd)
-#print(rangedf)
 accrualdf=alldf.loc[dateStart:dateEnd]
 accrualdf.drop(accrualdf.tail(1).index,inplace=True) # drop last row
 
-print('       accrual_days=',accrual_days) 
-
 print('          accrualdf=',accrualdf)
+print('       accrual_days=',accrual_days) 
 accrual_compounded=accrualdf['dailyAccrual'].product()
 rate_compounded = (accrual_compounded-1)*360/accrual_days
 print('accrual(compounded)=',accrual_compounded)
@@ -84,3 +124,4 @@ print('        rate(index)=',rate_index)
 
 print('    rate difference=',rate_compounded-rate_index)
 print("END")
+'''
