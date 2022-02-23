@@ -7,6 +7,7 @@ from datetime import datetime as dt, timedelta,date
 from dateutil.relativedelta import relativedelta
 from bs4 import BeautifulSoup
 import math
+import os
 
 TODAY=date.today()
 START_DATE_SOFR_ON=dt(2018, 4, 2)
@@ -19,6 +20,7 @@ SOFR_ON_REQCODE='520'
 SOFR_ON='percentRate'
 SOFR_INDEX_REQCODE='525'
 SOFR_INDEX='index'
+FOLLOWING=1
 
 def date2ccyymmdd(dateObj):
   return dt.strftime(dateObj,'%Y-%m-%d')
@@ -51,7 +53,7 @@ def fedQuery(rateCode, rateName,startDate,endDate):
 #              : 0  exact date (returns None if not found)
 #              : -1 find preceding date if no match (past)
 #   shift      : number of busdays, shift>0 later, shift<0 earlier
-def dateShift(cal, base_date, match, shift):
+def dateShift(cal, base_date, match=0, shift=0):
   if (match>0):
     locdir='bfill' # NEXT index value
   elif (match<0):
@@ -68,7 +70,38 @@ def dateShift(cal, base_date, match, shift):
   except:
     return None
 
+def rateSOFRon(alldf,d0,d1):
+  d1prevBD=dateShift(alldf,d1,FOLLOWING,-1)
+  accrualdf=alldf.loc[d0:d1prevBD] # accrual stops 1 day before coupon date
+  accrual_days = (d1-d0).days # calculated from 
+  accrual_compounded=accrualdf['dailyAccrual'].product()
+  rate_compounded = (accrual_compounded-1)*360/accrual_days
+  return rate_compounded
 
+def rateSOFRindex(alldf,d0,d1):
+  accrual_days = (d1-d0).days # calculated from 
+
+  index0 = alldf.loc[d0][SOFR_INDEX]
+  index1 = alldf.loc[d1][SOFR_INDEX]
+  accrual_index=index1/index0
+  rate_index = (accrual_index-1)*360/accrual_days
+  return rate_index
+  
+  
+def rateSOFRcleanindex(alldf,d0,d1):
+  accrual_days = (d1-d0).days # calculated from 
+  # next 3 lines calculates index0 without rounding
+  d0prevBD=dateShift(alldf,d0,FOLLOWING,-1)
+  accrualdf=alldf.loc[START_DATE_SOFR_ON:d0prevBD] 
+  index0=accrualdf['dailyAccrual'].product()
+  #
+  #print('cleanindex=',index0)
+  #print('index0=',alldf.loc[d0][SOFR_INDEX])
+  index1 = alldf.loc[d1][SOFR_INDEX]
+  accrual_index=index1/index0
+  rate_index = (accrual_index-1)*360/accrual_days
+  return rate_index
+#### functions ####
 
 # get data from Fed 
 # two queries because data ranges are different
@@ -87,36 +120,84 @@ alldf['dailyAccrual']=(alldf[SOFR_ON]*alldf['days'])/(DAY_COUNT*100)+1.0
 
 ######################## setup complete #######################
 
-d0 = dt(2020,3,11) 
-d1 = d0+relativedelta(months=6)
-shift=0
+'''
+d0 = dt(2021,12,10) 
+d1 = d0+relativedelta(months=1)
+print('  nominal dateStart=',date2ccyymmdd(d0))
+print('    nominal dateEnd=',date2ccyymmdd(d1))
+shift=-2
 following=1
-d0=dateShift(alldf,d0,following,shift)
-d1=dateShift(alldf,d1,following,shift)
-d1prevBD=dateShift(alldf,d1,following,-1)
+rounding=5 # meaning 3 for values expressed as %
+d0=dateShift(alldf,d0,following, shift)
+d1=dateShift(alldf,d1,following, shift)
 
-accrual_days = (d1-d0).days
-index0 = alldf.loc[d0][SOFR_INDEX]
-index1 = alldf.loc[d1][SOFR_INDEX]
+rate_compounded=rateSOFRon(alldf,d0,d1)
+rate_index=rateSOFRindex(alldf,d0,d1)
+sample_value=0.001112113114115
+if (not pd.isna(rounding)):
+  rate_compounded=round(rate_compounded, rounding)
+  rate_index=round(rate_index, rounding)
+  sample_round=round(sample_value, rounding)
+  pctfmt='{:.'+'{}'.format(rounding-2)+'%}'
+else:
+  sample_round=sample_value
+  pctfmt='{:10%}'
+#print('accrual(compounded)=',accrual_compounded)
+#print('     accrual(index)=',accrual_index)
+print('   rate(compounded)=',pctfmt.format(rate_compounded))
+print('        rate(index)=',pctfmt.format(rate_index))
 
-accrualdf=alldf.loc[d0:d1prevBD] # accrual stops 1 day before coupon date
-#accrualdf.drop(accrualdf.tail(1).index,inplace=True) # drop last row
+print('    rate difference=',pctfmt.format(rate_compounded-rate_index))
+print('    rounding digits=',rounding,'sample ','{:.10%}'.format(sample_value),'-rounds to-> ',pctfmt.format(sample_round))
+'''
 
-print('          accrualdf=\n',accrualdf)
-print('       accrual_days=',accrual_days) 
-accrual_compounded=accrualdf['dailyAccrual'].product()
-rate_compounded = (accrual_compounded-1)*360/accrual_days
-print('accrual(compounded)=',accrual_compounded)
-print('   rate(compounded)=',rate_compounded)
 
-print('          dateStart=',d0)
-print('         indexStart=',index0)
-print('            dateEnd=',d1)
-print('           indexEnd=',index1)
-accrual_index=index1/index0
-print('     accrual(index)=',accrual_index)
-rate_index = (accrual_index-1)*360/accrual_days
-print('        rate(index)=',rate_index)
+TEST0=START_DATE_SOFR_INDEX
+TEST1=TODAY # dt(2020, 9, 30) #TODAY
+TEST1prevBD=dateShift(alldf,TEST1,FOLLOWING,-1)
 
-print('    rate difference=',rate_compounded-rate_index)
+testdates=alldf.loc[START_DATE_SOFR_INDEX:TEST1].index # accrual 
+testlen=len(testdates)
+#stops 1 day before coupon date
+count=0;error=0;
+precision=5;  pctfmt='{:.'+'{}'.format(precision-2)+'%}'
+
+outputfile='test.csv'
+print(outputfile)
+f=open(outputfile,"w")
+f.write(', '.join(["d0","d1","daccr","compounded","indexed"
+    ,"comp_precise"
+    ,"index_precise" \
+    ,"diff","index_d0","index_d1"])+'\n')
+
+for i in range(testlen):
+  d0=testdates[i]
+  for j in range(i+1,testlen):
+    d1=testdates[j]
+    count+=1
+    rate_compounded=rateSOFRon(alldf,d0,d1)
+    rate_index=rateSOFRindex(alldf,d0,d1)
+    round_compounded=round(rate_compounded,precision)
+    round_index=round(rate_index,precision)
+    if((round_compounded-round_index)!=0):
+      error+=1
+      print('d0=',date2ccyymmdd(d0),'d1=',date2ccyymmdd(d1),'days accr.=','{}'.format((d1-d0).days) \
+            ,'compounded=', pctfmt.format(round_compounded) \
+            , 'indexed=' , pctfmt.format(round_index) \
+           )
+
+      
+      f.write(', '.join([date2ccyymmdd(d0),date2ccyymmdd(d1),'{}'.format((d1-d0).days) \
+                         ,pctfmt.format(round_compounded) \
+                         ,pctfmt.format(round_index) \
+                         ,'{:.10%}'.format(rate_compounded)
+                         ,'{:.10%}'.format(rate_index) \
+                         ,'{:.10%}'.format(rate_compounded-rate_index) \
+                         ,'{:.9}'.format(alldf.loc[d0][SOFR_INDEX]) \
+                         ,'{:.9}'.format(alldf.loc[d1][SOFR_INDEX]) \
+                        ])+'\n')  
+f.write(', '.join(['count','errors','error_rate'])+'\n')
+f.write(', '.join(['{}'.format(count),'{}'.format(error),'{:.2%}'.format(error/count)])+'\n')
+f.close()
+
 print("END")
